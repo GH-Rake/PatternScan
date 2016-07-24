@@ -3,20 +3,40 @@
 #include <TlHelp32.h>
 #include "processtools.h"
 
-//Combined pattern & mask
-void ParsePattern(char* combo, char * pattern, char * mask);
+namespace Pattern
+{
+	//Split combo pattern into mask/pattern
+	void Parse(char* combo, char* pattern, char* mask);
 
-//Internal Pattern scan, external pattern scan is just a wrapper around this
-void* PatternScan(char* base, size_t size, char* pattern, char *mask);
+	namespace In
+	{
+		//Internal Pattern Scan
+		char* Scan(char* pattern, char* mask, char* begin, unsigned int size);
 
-//External Wrapper for internal pattern scan
-void* PatternScanEx(HANDLE hProcess, uintptr_t begin, uintptr_t end, char *pattern, char *mask);
+		char* Mod(char *combopattern, Module*  module);
 
-//External version
-void* PatternScanExModule(HANDLE hProcess, wchar_t *module, char *pattern, char *mask);
+		char* AllMods(char* combopattern);
 
-//External all modules
-void* PatternScanExProcess(wchar_t* processName, char *pattern, char *mask);
+		char* Proc(char* combopattern);
+	}
 
-//Combined pattern * mask scan
-void* PatternScanExCombo(HANDLE hProcess, wchar_t *module, char *combopattern);
+	namespace Ex
+	{
+		//External Wrapper
+		char* Scan(char* pattern, char* mask, char* begin, char* end, Process* process);
+
+		//Scan just a module
+		char* Mod(char* pattern, char* mask, Module* module);
+		//Overloaded Function for combopattern
+		char* Mod(char* combopattern, Module* module);
+
+		//Scan all modules from process
+		char* AllMods(char* pattern, char* mask, Process* process);
+		//Overloaded Function for combopattern
+		char* AllMods(char* combopattern, Process* process);
+
+		//Scan entire process
+		char* Proc(char* combopattern, Process* process);
+
+	}
+}

@@ -1,75 +1,102 @@
 #include "processtools.h"
+#include <stdlib.h>
+#include <tchar.h>
 
-DWORD GetProcID(wchar_t* exeName)
+//Convert char* to wchar_t*
+wchar_t* TO_WCHAR_T(char* string)
 {
-	PROCESSENTRY32 procEntry = { 0 };
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-
-	if (!hSnapshot)
-		return NULL;
-
-	procEntry.dwSize = sizeof(procEntry);
-
-	if (!Process32First(hSnapshot, &procEntry))
-		return NULL;
-
-	do
-	{
-		if (!wcscmp(procEntry.szExeFile, exeName))
-		{
-			CloseHandle(hSnapshot);
-			return procEntry.th32ProcessID;
-		}
-	} while (Process32Next(hSnapshot, &procEntry));
-
-	CloseHandle(hSnapshot);
-	return NULL;
+	unsigned int len = strlen(string) + 1;
+	wchar_t* wc_string = new wchar_t[len];
+	unsigned int numCharsRead;
+	mbstowcs_s(&numCharsRead, wc_string, len, string, _TRUNCATE);
+	return wc_string;
 }
 
-MODULEENTRY32 GetModule(DWORD dwProcID, wchar_t* moduleName)
+//Convert wchar_t* to char*
+char* TO_CHAR(wchar_t* string)
 {
-	MODULEENTRY32 modEntry = { 0 };
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, dwProcID);
+	unsigned int len = wcslen(string) + 1;
+	char* c_string = new char[len];
+	unsigned int numCharsRead;
+	wcstombs_s(&numCharsRead, c_string, len, string, _TRUNCATE);
+	return c_string;
+}
+
+//Get Process by name
+bool Process::Get(TCHAR* exeName, PROCESSENTRY32& procEntry)
+{
+	procEntry = { 0 };
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+	if (hSnapshot)
+	{
+		procEntry.dwSize = sizeof(procEntry);
+
+		if (Process32First(hSnapshot, &procEntry))
+		{
+			do
+			{
+				if (!_tcscmp(procEntry.szExeFile, exeName))
+				{
+					CloseHandle(hSnapshot);
+					bValid = true;
+					return true;
+				}
+			} while (Process32Next(hSnapshot, &procEntry));
+		}
+	}
+	CloseHandle(hSnapshot);
+	return false;
+}
+
+Process::Process(TCHAR* exeName)
+{
+	this->name = exeName;
+	Get(exeName, *this);
+}
+
+bool Process::Attach()
+{
+	handle = OpenProcess(PROCESS_ALL_ACCESS, NULL, th32ProcessID);
+
+	if (handle)
+	{
+		return true;
+	}
+	else return false;
+}
+
+Module::Module(Process* process, TCHAR* moduleName)
+{
+	this->name = moduleName;
+	this->process = process;
+	Get(process, moduleName, *this);
+}
+
+bool Module::Get(Process* process, TCHAR* moduleName, MODULEENTRY32 &modEntry)
+{
+	modEntry = { 0 };
+
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, process->th32ProcessID);
+
 	if (hSnapshot != INVALID_HANDLE_VALUE)
 	{
 		modEntry.dwSize = sizeof(MODULEENTRY32);
+
 		if (Module32First(hSnapshot, &modEntry))
 		{
 			do
 			{
-				if (wcscmp(modEntry.szModule, moduleName) == 0)
+				if (!_tcscmp(modEntry.szModule, moduleName))
 				{
-					break;
+					CloseHandle(hSnapshot);
+					bValid = true;
+					return true;
 				}
 			} while (Module32Next(hSnapshot, &modEntry));
 		}
 		CloseHandle(hSnapshot);
 	}
-	return modEntry;
-}
-
-PROCESSENTRY32 GetProcess(wchar_t* exeName)
-{
-	PROCESSENTRY32 procEntry = { 0 };
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-
-	if (!hSnapshot)
-		return procEntry;
-
-	procEntry.dwSize = sizeof(procEntry);
-
-	if (!Process32First(hSnapshot, &procEntry))
-		return procEntry;
-
-	do
-	{
-		if (!wcscmp(procEntry.szExeFile, exeName))
-		{
-			CloseHandle(hSnapshot);
-			return procEntry;
-		}
-	} while (Process32Next(hSnapshot, &procEntry));
-
-	CloseHandle(hSnapshot);
-	return procEntry;
+	bValid = false;
+	return false;
 }
